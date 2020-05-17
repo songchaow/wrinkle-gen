@@ -127,7 +127,7 @@ Float LargeScaleWrinkle::height(Point2f p) {
     // if too far, 
     bool in_range;
     Float roughDist = curve.roughDistance(p, &in_range);
-    if(!in_range || roughDist > 6 * width)
+    if(!in_range || roughDist > 10 * width)
         return 0.f;
     Float dist = curve.distance(p, &in_range);
     return height(dist);
@@ -153,5 +153,5 @@ void Canvas::WritePNG() {
     for(int i = 0; i < map.size() * map.size(); i++)
         buffer[i] = static_cast<unsigned char>(*(d++) * 255);
     //WritePNGfromChar
-    WritePNGfromChar("wrinkle.png", map.size(), map.size(), 1);
+    WritePNGfromChar("wrinkle.png", (char*)buffer.data(), map.size(), map.size(), 1);
 }

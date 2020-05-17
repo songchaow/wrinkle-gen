@@ -16,6 +16,7 @@ int main() {
     };
     Canvas canvas(1024, 3);
     canvas.AddWrinkle(wrinkle);
-    
+    canvas.WriteWrinkles();
+    canvas.WritePNG();
     return 0;
 }

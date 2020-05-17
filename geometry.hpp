@@ -36,6 +36,7 @@
 #endif
 
 #include <iterator>
+#include <glog/logging.h>
 typedef float Float;
 inline Float Lerp(Float t, Float v1, Float v2) { return (1 - t) * v1 + t * v2; }
 constexpr Float Pi = 3.14159265358979323846F;
