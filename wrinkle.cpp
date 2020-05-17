@@ -120,7 +120,9 @@ void CubicBezier2D::subDivide(Point2f* childrenPoints) {
 }
 
 Float LargeScaleWrinkle::height(Float distance) {
-    return depth * (distance / width - 1) * std::exp(-distance/width);
+    // add depth to the original formula.
+    Float sum = depth * (distance / width - 1) * std::exp(-distance/width);
+    return sum;
 }
 
 Float LargeScaleWrinkle::height(Point2f p) {
@@ -140,7 +142,12 @@ void Canvas::WriteWrinkles() {
             Point2f worldPos = { i * ratio * world_size, j * ratio * world_size };
             map.Set(i, j, 0.0);
             for(auto& w : wrinkles) {
-                map.Add(i, j, w.height(worldPos));
+                Float currHeight = w.height(worldPos);
+                map.Add(i, j, currHeight);
+                if (currHeight > maxHeight)
+                    maxHeight = currHeight;
+                if (currHeight < minHeight)
+                    minHeight = currHeight;
             }
         }
     }
@@ -150,8 +157,10 @@ void Canvas::WritePNG() {
     std::vector<unsigned char> buffer;
     buffer.resize(map.size()*map.size());
     Float* d = map.data();
-    for(int i = 0; i < map.size() * map.size(); i++)
-        buffer[i] = static_cast<unsigned char>(*(d++) * 255);
+    for (int i = 0; i < map.size() * map.size(); i++) {
+        Float normHeight = (*d++ - minHeight) / (maxHeight - minHeight);
+        buffer[i] = static_cast<unsigned char>(normHeight * 255);
+    }
     //WritePNGfromChar
     WritePNGfromChar("wrinkle.png", (char*)buffer.data(), map.size(), map.size(), 1);
 }
