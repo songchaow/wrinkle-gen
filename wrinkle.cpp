@@ -1,7 +1,9 @@
 #if defined(_MSC_VER)
 #define NOMINMAX
+#endif
 
 #include "wrinkle.hpp"
+#include "imageio.hpp"
 #include <cassert>
 #include <algorithm>
 
@@ -97,26 +99,7 @@ Float CubicBezier2D::distance(Point2f p, bool* in_range) {
         // accurate enough
         return globalDistance;
     }
-    
-
-    Float minDistance = 0;
-    for(int i = 0; i < NUM_POINT - 1; i++) {
-        Vector2f edge = ctPoints[i+1] - ctPoints[i];
-        Vector2f p2firstPoint = p - ctPoints[i];
-        // is in range?
-
-        // calc distance to edge
-        Float aSqbSq = edge.LengthSquared()*p2firstPoint.LengthSquared();
-        Float abCosTheta = Dot(edge, p2firstPoint);
-        Float a2b2CosTheta2 = abCosTheta * abCosTheta;
-        Float a2b2SinTheta2 = 1-abCosTheta;
-        Float abSinTheta = std::sqrt(a2b2SinTheta2);
-        Float distance = abSinTheta / edge.Length();
-        if(minDistance==0)
-            minDistance = distance;
-        if(distance < minDistance)
-            ;
-    }
+    return subdivideAndRecursiveDistance(p, in_range, 0);
 }
 
 static Point3f BlossomBezier(const Point3f p[4], Float u0, Float u1, Float u2) {
@@ -134,4 +117,41 @@ void CubicBezier2D::subDivide(Point2f* childrenPoints) {
     childrenPoints[4] = (ctPoints[1] + 2 * ctPoints[2] + ctPoints[3]) / 4;
     childrenPoints[5] = (ctPoints[2] + ctPoints[3]) / 2;
     childrenPoints[6] = ctPoints[3];
+}
+
+Float LargeScaleWrinkle::height(Float distance) {
+    return depth * (distance / width - 1) * std::exp(-distance/width);
+}
+
+Float LargeScaleWrinkle::height(Point2f p) {
+    // if too far, 
+    bool in_range;
+    Float roughDist = curve.roughDistance(p, &in_range);
+    if(!in_range || roughDist > 6 * width)
+        return 0.f;
+    Float dist = curve.distance(p, &in_range);
+    return height(dist);
+}
+
+void Canvas::WriteWrinkles() {
+    Float ratio = 1.0 / (Float)map.size();
+    for(int i=0;i<map.size();i++) {
+        for(int j=0;j<map.size();j++) {
+            Point2f worldPos = { i * ratio * world_size, j * ratio * world_size };
+            map.Set(i, j, 0.0);
+            for(auto& w : wrinkles) {
+                map.Add(i, j, w.height(worldPos));
+            }
+        }
+    }
+}
+
+void Canvas::WritePNG() {
+    std::vector<unsigned char> buffer;
+    buffer.resize(map.size()*map.size());
+    Float* d = map.data();
+    for(int i = 0; i < map.size() * map.size(); i++)
+        buffer[i] = static_cast<unsigned char>(*(d++) * 255);
+    //WritePNGfromChar
+    WritePNGfromChar("wrinkle.png", map.size(), map.size(), 1);
 }

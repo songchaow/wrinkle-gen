@@ -1,6 +1,8 @@
 #pragma once
 
 #include "geometry.hpp"
+#include "heightmap.hpp"
+#include <vector>
 
 struct CubicBezier2D {
 protected:
@@ -17,6 +19,21 @@ public:
     }
 };
 
-class LargeScaleWrinkle {
+struct LargeScaleWrinkle {
     CubicBezier2D curve;
+    Float depth; // param d
+    Float width; // param w
+    Float height(Float distance); // S(l)
+    Float height(Point2f p);
+};
+
+class Canvas {
+    HeightMap map;
+    Float world_size;
+    std::vector<LargeScaleWrinkle> wrinkles;
+public:
+    Canvas(uint32_t resolution, uint32_t world_size) : map(resolution), world_size(world_size) {}
+    void AddWrinkle(const LargeScaleWrinkle& w) { wrinkles.push_back(w); }
+    void WriteWrinkles();
+    void WritePNG();
 };
