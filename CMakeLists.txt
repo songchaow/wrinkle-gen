@@ -6,6 +6,9 @@ project(wrinkle-gen)
 SET(WITH_GFLAGS OFF CACHE BOOL "Use gflags")
 add_subdirectory(ext/glog)
 
+# tiff
+add_subdirectory(ext/tiff-4.1.0)
+
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}")
 
 file(GLOB WRINKLE_GEN_SRC
@@ -19,3 +22,4 @@ file(GLOB WRINKLE_GEN_SRC
 file(GLOB TEST_ENTRY test/*)
 add_executable(gen-test ${WRINKLE_GEN_SRC} ${TEST_ENTRY})
 target_link_libraries(gen-test glog::glog)
+target_link_libraries(gen-test tiff)

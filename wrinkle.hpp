@@ -41,4 +41,5 @@ public:
     void AddWrinkle(const LargeScaleWrinkle& w) { wrinkles.push_back(w); }
     void WriteWrinkles();
     void WritePNG();
+    void WriteTIFF();
 };

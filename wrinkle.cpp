@@ -164,3 +164,14 @@ void Canvas::WritePNG() {
     //WritePNGfromChar
     WritePNGfromChar("wrinkle.png", (char*)buffer.data(), map.size(), map.size(), 1);
 }
+
+void Canvas::WriteTIFF() {
+    // make all above zero
+    Float* d = map.data();
+    for (int i = 0; i < map.size() * map.size(); i++) {
+        *d -= minHeight;
+        d++;
+    }
+
+    WriteTIFFfromFloat("wrinkle.tiff", map.data(), map.size(), map.size(), 1, sizeof(float) * 8);
+}
