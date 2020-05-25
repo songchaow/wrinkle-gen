@@ -7,23 +7,32 @@
 #include <cassert>
 #include <algorithm>
 
-Float CubicBezier2D::roughDistance(Point2f p, bool* in_range) {
-    // is in range?
+bool CubicBezier2D::inRange(Point2f p) {
     Vector2f p2firstPoint = p - ctPoints[0];
     Vector2f tangentStart = ctPoints[1] - ctPoints[0];
     Float edge1 = Dot(tangentStart, p2firstPoint);
-    if(edge1<0) {
-        *in_range = false;
-        return 0.f;
-    }
+    if(edge1 < 0)
+        return false;
     Vector2f tangentEnd = ctPoints[2] - ctPoints[3];
     Vector2f p2lastPoint = p - ctPoints[3];
     Float edge2 = Dot(tangentEnd, p2lastPoint);
-    if(edge2<0) {
-        *in_range = false;
-        return 0.f;
-    }
-    *in_range = true;
+    if(edge2 < 0)
+        return false;
+}
+
+void CubicBezier2D::distance2Edge(Point2f p, Float& edge1, Float& edge2) {
+    // is in range?
+    Vector2f p2firstPoint = p - ctPoints[0];
+    Vector2f tangentStart = ctPoints[1] - ctPoints[0];
+    edge1 = Dot(tangentStart, p2firstPoint);
+    Vector2f tangentEnd = ctPoints[2] - ctPoints[3];
+    Vector2f p2lastPoint = p - ctPoints[3];
+    edge2 = Dot(tangentEnd, p2lastPoint);
+}
+
+Float CubicBezier2D::roughDistance(Point2f p) {
+    //// is in range?
+    
     // calc distance to edge
     Vector2f edge = ctPoints[3] - ctPoints[0];
     Float absin = AbsCross(edge, p2firstPoint);
@@ -53,20 +62,20 @@ Float CubicBezier2D::subdivideAndRecursiveDistance(Point2f p, bool* in_range, in
     CubicBezier2D subCurve1(subCtlPoints);
     CubicBezier2D subCurve2(subCtlPoints+3);
     // test each
-    bool in_range_local1 = false;
-    Float subdistance1 = subCurve1.roughDistance(p, &in_range_local1);
+    bool in_range_local1 = subCurve1.inRange(p);
+    Float subdistance1 = subCurve1.roughDistance(p);
     Float sw1 = subCurve1.selfWidth();
     if(in_range_local1 && inDepth) {
-        if(sw1 == 0.f || subdistance1 / sw1 > 100)
+        if(sw1 == 0.f || subdistance1 / sw1 > ACCURATE_RATIO)
             ; // accurate enough
         else
             subdistance1 = subCurve1.subdivideAndRecursiveDistance(p, &in_range_local1, depth+1);
     }
-    bool in_range_local2 = false;
-    Float subdistance2 = subCurve2.roughDistance(p, &in_range_local2);
+    bool in_range_local2 = subCurve2.inRange(p);
+    Float subdistance2 = subCurve2.roughDistance(p);
     Float sw2 = subCurve2.selfWidth();
     if(in_range_local2 && inDepth) {
-        if(sw2 == 0.f || subdistance2 / sw2 > 100)
+        if(sw2 == 0.f || subdistance2 / sw2 > ACCURATE_RATIO)
             ; // accurate enough
         else
             subdistance2 = subCurve2.subdivideAndRecursiveDistance(p, &in_range_local2, depth+1);
@@ -90,9 +99,12 @@ Float CubicBezier2D::subdivideAndRecursiveDistance(Point2f p, bool* in_range, in
 
 // two info: in range? distance
 Float CubicBezier2D::distance(Point2f p, bool* in_range) {
-    Float globalDistance = roughDistance(p, in_range);
-    if(!*in_range)
-        return 0.f;
+    *in_range = inRange(p);
+    if(!*in_range) {
+        // test distance to the edge
+        
+    }
+    Float globalDistance = roughDistance(p);
     // accurate enough?
     Float sw = selfWidth();
     if(sw == 0.f || globalDistance / sw > 100) {
@@ -151,6 +163,8 @@ void Canvas::WriteWrinkles() {
             }
         }
     }
+    LOG(INFO) << "maxHeight:" << maxHeight;
+    LOG(INFO) << "minHeight:" << minHeight;
 }
 
 void Canvas::WritePNG() {

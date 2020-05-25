@@ -11,9 +11,12 @@ protected:
     Float selfWidth();
 public:
     static constexpr int NUM_POINT = 4;
+    static constexpr int ACCURATE_RATIO = 100;
     Point2f ctPoints[NUM_POINT];
     Float roughDistance(Point2f p, bool* in_range);
     Float distance(Point2f p, bool* in_range);
+    void distance2Edge(Point2f p, Float& edge1, Float& edge2);
+    bool inRange(Point2f p);
     CubicBezier2D(Point2f* dataStart) {
         std::memcpy(ctPoints, dataStart, sizeof(Point2f)*NUM_POINT);
     }
@@ -21,7 +24,7 @@ public:
 
 struct LargeScaleWrinkle {
     CubicBezier2D curve;
-    Float depth; // param d
+    Float depth; // param d, unit is cm in reality
     Float width; // param w
     Float maxHeight;
     Float height(Float distance); // S(l)
