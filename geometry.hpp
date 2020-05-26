@@ -36,6 +36,8 @@
 #endif
 
 #include <iterator>
+#include <cmath>
+#include <limits>
 #include <glog/logging.h>
 typedef float Float;
 inline Float Lerp(Float t, Float v1, Float v2) { return (1 - t) * v1 + t * v2; }

@@ -4,6 +4,7 @@
 #include "heightmap.hpp"
 #include <vector>
 #include <cmath>
+#include <cstring>
 
 struct CubicBezier2D {
 public:
@@ -40,7 +41,7 @@ struct LargeScaleWrinkle {
     Float height(Float distance); // S(l)
     Float height(Point2f p);
     LargeScaleWrinkle(CubicBezier2D curve, Float depth, Float width) : curve(curve), depth(depth), width(width),
-        maxHeight(depth*(1.f + std::expf(-2.f))) {}
+        maxHeight(depth*(1.f + std::exp(-2.f))) {}
 };
 
 class Canvas {
