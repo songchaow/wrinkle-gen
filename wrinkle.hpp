@@ -3,6 +3,7 @@
 #include "geometry.hpp"
 #include "heightmap.hpp"
 #include <vector>
+#include <cmath>
 
 struct CubicBezier2D {
 public:
