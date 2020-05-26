@@ -176,15 +176,15 @@ Float LargeScaleWrinkle::height(Point2f p) {
         // very far away?
         if(distance > 3 * width)
             return 0;
-        shrinkRatio = 1.0f - distance / 3.0 / width;
+        shrinkRatio = 1.0f - distance / 3.0f / width;
     }     
     return shrinkRatio * heightP(p, range_flag);
 }
 
 void Canvas::WriteWrinkles() {
-    Float ratio = 1.0 / (Float)map.size();
-    for(int i=0;i<map.size();i++) {
-        for(int j=0;j<map.size();j++) {
+    Float ratio = 1.0f / (Float)map.size();
+    for(uint32_t i=0;i<map.size();i++) {
+        for(uint32_t j=0;j<map.size();j++) {
             Point2f worldPos = { i * ratio * world_size, j * ratio * world_size };
             map.Set(i, j, 0.0);
             for(auto& w : wrinkles) {
@@ -205,7 +205,7 @@ void Canvas::WritePNG() {
     std::vector<unsigned char> buffer;
     buffer.resize(map.size()*map.size());
     Float* d = map.data();
-    for (int i = 0; i < map.size() * map.size(); i++) {
+    for (uint32_t i = 0; i < map.size() * map.size(); i++) {
         Float normHeight = (*d++ - minHeight) / (maxHeight - minHeight);
         buffer[i] = static_cast<unsigned char>(normHeight * 255);
     }
@@ -216,7 +216,7 @@ void Canvas::WritePNG() {
 void Canvas::WriteTIFF() {
     // make all above zero
     Float* d = map.data();
-    for (int i = 0; i < map.size() * map.size(); i++) {
+    for (uint32_t i = 0; i < map.size() * map.size(); i++) {
         *d -= minHeight;
         d++;
     }

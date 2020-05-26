@@ -9,7 +9,7 @@ int main() {
         {2.5, 1.0}
     };
     CubicBezier2D curve(ctlPoints);
-    LargeScaleWrinkle wrinkle(curve, 1.0, 0.1);
+    LargeScaleWrinkle wrinkle(curve, 1.0f, 0.1f);
     Canvas canvas(1024, 3);
     canvas.AddWrinkle(wrinkle);
     canvas.WriteWrinkles();

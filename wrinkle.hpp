@@ -39,7 +39,7 @@ struct LargeScaleWrinkle {
     Float height(Float distance); // S(l)
     Float height(Point2f p);
     LargeScaleWrinkle(CubicBezier2D curve, Float depth, Float width) : curve(curve), depth(depth), width(width),
-        maxHeight(depth*(1 + std::exp(-2))) {}
+        maxHeight(depth*(1.f + std::expf(-2.f))) {}
 };
 
 class Canvas {
@@ -49,7 +49,7 @@ class Canvas {
     Float maxHeight = 0.0;
     Float minHeight = 0.0;
 public:
-    Canvas(uint32_t resolution, uint32_t world_size) : map(resolution), world_size(world_size) {}
+    Canvas(uint32_t resolution, Float world_size) : map(resolution), world_size(world_size) {}
     void AddWrinkle(const LargeScaleWrinkle& w) { wrinkles.push_back(w); }
     void WriteWrinkles();
     void WritePNG();
