@@ -6,7 +6,7 @@ int main() {
         {0.0, 1.0},
         {1.0, 2.0},
         {2.0, 0.0},
-        {3.0, 1.0}
+        {2.5, 1.0}
     };
     CubicBezier2D curve(ctlPoints);
     LargeScaleWrinkle wrinkle(curve, 1.0, 0.1);

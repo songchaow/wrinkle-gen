@@ -7,6 +7,10 @@
 #include <cassert>
 #include <algorithm>
 
+inline bool inRange(Float dist2edge1, Float dist2edge2) {
+    return dist2edge1 >= 0 && dist2edge2 >= 0;
+}
+
 bool CubicBezier2D::inRange(Point2f p) {
     Vector2f p2firstPoint = p - ctPoints[0];
     Vector2f tangentStart = ctPoints[1] - ctPoints[0];
@@ -18,6 +22,7 @@ bool CubicBezier2D::inRange(Point2f p) {
     Float edge2 = Dot(tangentEnd, p2lastPoint);
     if(edge2 < 0)
         return false;
+    return true;
 }
 
 void CubicBezier2D::distance2Edge(Point2f p, Float& edge1, Float& edge2) {
@@ -34,6 +39,7 @@ Float CubicBezier2D::roughDistance(Point2f p) {
     //// is in range?
     
     // calc distance to edge
+    Vector2f p2firstPoint = p - ctPoints[0];
     Vector2f edge = ctPoints[3] - ctPoints[0];
     Float absin = AbsCross(edge, p2firstPoint);
     Float dist = absin / edge.Length();
@@ -53,7 +59,9 @@ Float CubicBezier2D::selfWidth() {
     return selfWidth;
 }
 
-Float CubicBezier2D::subdivideAndRecursiveDistance(Point2f p, bool* in_range, int depth) {
+// TODO: remove in_range
+Float CubicBezier2D::subdivideAndRecursiveDistance(Point2f p, RangeIndicator range_flag, int depth) {
+    bool in_range = range_flag == IN_RANGE;
     static constexpr int MAX_DEPTH = 10;
     bool inDepth = depth <= MAX_DEPTH;
     // subdivide
@@ -61,35 +69,41 @@ Float CubicBezier2D::subdivideAndRecursiveDistance(Point2f p, bool* in_range, in
     subDivide(subCtlPoints);
     CubicBezier2D subCurve1(subCtlPoints);
     CubicBezier2D subCurve2(subCtlPoints+3);
-    // test each
-    bool in_range_local1 = subCurve1.inRange(p);
-    Float subdistance1 = subCurve1.roughDistance(p);
-    Float sw1 = subCurve1.selfWidth();
-    if(in_range_local1 && inDepth) {
-        if(sw1 == 0.f || subdistance1 / sw1 > ACCURATE_RATIO)
-            ; // accurate enough
-        else
-            subdistance1 = subCurve1.subdivideAndRecursiveDistance(p, &in_range_local1, depth+1);
+    Float distanceLeft1, distanceRight1;
+    Float distanceLeft2, distanceRight2;
+    subCurve1.distance2Edge(p, distanceLeft1, distanceRight1);
+    subCurve2.distance2Edge(p, distanceLeft2, distanceRight2);
+    bool in_range_local1 = ::inRange(distanceLeft1, distanceRight1);
+    bool in_range_local2 = ::inRange(distanceLeft2, distanceRight2);
+    Float subdistance1;
+    Float subdistance2;
+    if ((in_range && in_range_local1)
+        || (!in_range && range_flag == LEFT)) {
+        subdistance1 = subCurve1.roughDistance(p);
+        Float sw1 = subCurve1.selfWidth();
+        bool accurateEnough = sw1 == 0.f || subdistance1 / sw1 > ACCURATE_RATIO;
+        if (inDepth && !accurateEnough)
+            subdistance1 = subCurve1.subdivideAndRecursiveDistance(p, range_flag, depth + 1);
     }
-    bool in_range_local2 = subCurve2.inRange(p);
-    Float subdistance2 = subCurve2.roughDistance(p);
-    Float sw2 = subCurve2.selfWidth();
-    if(in_range_local2 && inDepth) {
-        if(sw2 == 0.f || subdistance2 / sw2 > ACCURATE_RATIO)
-            ; // accurate enough
-        else
-            subdistance2 = subCurve2.subdivideAndRecursiveDistance(p, &in_range_local2, depth+1);
+    if ((in_range && in_range_local2)
+        || (!in_range && range_flag == RIGHT)) {
+        subdistance2 = subCurve2.roughDistance(p);
+        Float sw2 = subCurve2.selfWidth();
+        bool accurateEnough = sw2 == 0.f || subdistance2 / sw2 > ACCURATE_RATIO;
+        if (inDepth && !accurateEnough)
+            subdistance2 = subCurve2.subdivideAndRecursiveDistance(p, range_flag, depth + 1);
     }
     // choose the minimum
-    if(in_range_local1 && in_range_local2) {
-        *in_range = true;
+    if (!in_range) {
+        if (range_flag == LEFT)
+            return subdistance1;
+        else
+            return subdistance2;
+    }
+    else if(in_range_local1 && in_range_local2) {
         return std::min(subdistance1, subdistance2);
     }
-    else if(!in_range_local1 && !in_range_local2) {
-        assert(0 && "In range in caller function. Out of range in callee");
-    }
     else {
-        *in_range = true;
         if(in_range_local1)
             return subdistance1;
         else
@@ -98,12 +112,7 @@ Float CubicBezier2D::subdivideAndRecursiveDistance(Point2f p, bool* in_range, in
 }
 
 // two info: in range? distance
-Float CubicBezier2D::distance(Point2f p, bool* in_range) {
-    *in_range = inRange(p);
-    if(!*in_range) {
-        // test distance to the edge
-        
-    }
+Float CubicBezier2D::accurateDistance(Point2f p, RangeIndicator range_flag) {
     Float globalDistance = roughDistance(p);
     // accurate enough?
     Float sw = selfWidth();
@@ -111,7 +120,7 @@ Float CubicBezier2D::distance(Point2f p, bool* in_range) {
         // accurate enough
         return globalDistance;
     }
-    return subdivideAndRecursiveDistance(p, in_range, 0);
+    return subdivideAndRecursiveDistance(p, range_flag, 0);
 }
 
 static Point3f BlossomBezier(const Point3f p[4], Float u0, Float u1, Float u2) {
@@ -137,14 +146,39 @@ Float LargeScaleWrinkle::height(Float distance) {
     return sum;
 }
 
-Float LargeScaleWrinkle::height(Point2f p) {
-    // if too far, 
-    bool in_range;
-    Float roughDist = curve.roughDistance(p, &in_range);
-    if(!in_range || roughDist > 10 * width)
+Float LargeScaleWrinkle::heightP(Point2f p, CubicBezier2D::RangeIndicator range_flag) {
+    Float roughDist = curve.roughDistance(p);
+    // too far away
+    if(roughDist > 10 * width)
         return 0.f;
-    Float dist = curve.distance(p, &in_range);
+    Float dist = curve.accurateDistance(p, range_flag);
     return height(dist);
+}
+
+Float LargeScaleWrinkle::height(Point2f p) {
+    // check distances to 2 edges
+    Float edge1, edge2;
+    curve.distance2Edge(p, edge1, edge2);
+    Float shrinkRatio = 1.0f;
+    bool in_range = edge1 >= 0 && edge2 >= 0;
+    CubicBezier2D::RangeIndicator range_flag = CubicBezier2D::RangeIndicator::IN_RANGE;
+    if(!in_range) {
+        // test distance to the edge
+        Float distance;
+        if (edge1 < 0) {
+            distance = -edge1;
+            range_flag = CubicBezier2D::RangeIndicator::LEFT;
+        }
+        else {
+            distance = -edge2;
+            range_flag = CubicBezier2D::RangeIndicator::RIGHT;
+        }
+        // very far away?
+        if(distance > 3 * width)
+            return 0;
+        shrinkRatio = 1.0f - distance / 3.0 / width;
+    }     
+    return shrinkRatio * heightP(p, range_flag);
 }
 
 void Canvas::WriteWrinkles() {
