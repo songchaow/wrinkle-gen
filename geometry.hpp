@@ -524,6 +524,7 @@ class Vector2 {
     bool HasNaNs() const { return isNaN(x) || isNaN(y); }
     explicit Vector2(const Point2<T> &p);
     explicit Vector2(const Point3<T> &p);
+    Vector2 Perpendicular() const { return Vector2(y, -x); }
 #ifndef NDEBUG
     // The default versions of these are fine for release builds; for debug
     // we define them so that we can add the Assert checks.

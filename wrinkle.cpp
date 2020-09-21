@@ -4,6 +4,7 @@
 
 #include "wrinkle.hpp"
 #include "imageio.hpp"
+#include "ext/spline.h"
 #include <cassert>
 #include <algorithm>
 
@@ -35,6 +36,12 @@ void CubicBezier2D::distance2Edge(Point2f p, Float& edge1, Float& edge2) {
     edge2 = Dot(tangentEnd, p2lastPoint);
 }
 
+void CubicBezier2D::distance2FirstEdge(Point2f p, Float& edge1) {
+    Vector2f p2firstPoint = p - ctPoints[0];
+    Vector2f tangentStart = ctPoints[1] - ctPoints[0];
+    edge1 = Dot(tangentStart, p2firstPoint);
+}
+
 Float CubicBezier2D::roughDistance(Point2f p) {
     //// is in range?
     
@@ -49,6 +56,14 @@ Float CubicBezier2D::roughDistance(Point2f p) {
     // Float a2b2SinTheta2 = 1-abCosTheta;
     // Float abSinTheta = std::sqrt(a2b2SinTheta2);
     return dist;
+}
+
+Float CubicBezier2D::roughProgress(Point2f p) {
+    Vector2f p2firstPoint = p - ctPoints[0];
+    Vector2f edge = ctPoints[3] - ctPoints[0];
+    Float abcos = AbsDot(edge, p2firstPoint);
+    Float progress = abcos / edge.Length() / p2firstPoint.Length();
+    return progress;
 }
 
 Float CubicBezier2D::selfWidth() {
@@ -69,6 +84,7 @@ Float CubicBezier2D::subdivideAndRecursiveDistance(Point2f p, RangeIndicator ran
     subDivide(subCtlPoints);
     CubicBezier2D subCurve1(subCtlPoints);
     CubicBezier2D subCurve2(subCtlPoints+3);
+
     Float distanceLeft1, distanceRight1;
     Float distanceLeft2, distanceRight2;
     subCurve1.distance2Edge(p, distanceLeft1, distanceRight1);
@@ -111,6 +127,64 @@ Float CubicBezier2D::subdivideAndRecursiveDistance(Point2f p, RangeIndicator ran
     }
 }
 
+void CubicBezier2D::subdivideAndRecursiveProgress(Point2f p, RangeIndicator range_flag, int depth,
+    Float lastProgess, float startingProgress, std::vector<std::pair<float,float>>& perpendicular_locs) {
+    bool in_range = range_flag == IN_RANGE;
+    static constexpr int MAX_DEPTH = 10;
+    bool inDepth = depth <= MAX_DEPTH;
+    // subdivide
+    Point2f subCtlPoints[7];
+    subDivide(subCtlPoints);
+    CubicBezier2D subCurve1(subCtlPoints);
+    CubicBezier2D subCurve2(subCtlPoints+3);
+
+    Float distanceLeft1, distanceRight1;
+    Float distanceLeft2, distanceRight2;
+    subCurve1.distance2Edge(p, distanceLeft1, distanceRight1);
+    subCurve2.distance2Edge(p, distanceLeft2, distanceRight2);
+    bool in_range_local1 = ::inRange(distanceLeft1, distanceRight1);
+    bool in_range_local2 = ::inRange(distanceLeft2, distanceRight2);
+    Float subdistance1;
+    Float subdistance2;
+    
+    Float currSubdivideRatio = static_cast<float>(2 << depth);
+    Float currLocalSubProgressLength = 1.f / (float)currSubdivideRatio;
+
+    if ((in_range && in_range_local1)
+        || (!in_range && range_flag == LEFT)) {
+        subdistance1 = subCurve1.roughDistance(p);
+        // relative local progress
+        Float localProgress = subCurve1.roughProgress(p);
+        Float currGlobalProgress = startingProgress + currLocalSubProgressLength * localProgress;
+        // accurate enough
+        bool progressAccurateEnough = std::abs(currGlobalProgress - lastProgess) < 0.001f;
+        Float sw1 = subCurve1.selfWidth();
+        bool accurateEnough = sw1 == 0.f || subdistance1 / sw1 > ACCURATE_RATIO && progressAccurateEnough;
+        if (inDepth && !accurateEnough)
+            //subdistance1 = subCurve1.subdivideAndRecursiveDistance(p, range_flag, depth + 1);
+            subCurve1.subdivideAndRecursiveProgress(p, range_flag, depth + 1, currGlobalProgress, startingProgress, perpendicular_locs);
+        else
+            perpendicular_locs.push_back({currGlobalProgress, subdistance1});
+        
+    }
+    if ((in_range && in_range_local2)
+        || (!in_range && range_flag == RIGHT)) {
+        subdistance2 = subCurve2.roughDistance(p);
+        // relative local progress
+        float localProgress = subCurve2.roughProgress(p);
+        float currGlobalProgress = startingProgress + currLocalSubProgressLength * (1.f + localProgress);
+        // accurate enough
+        bool progressAccurateEnough = std::abs(currGlobalProgress - lastProgess) < 0.001f;
+        Float sw2 = subCurve2.selfWidth();
+        bool accurateEnough = sw2 == 0.f || subdistance2 / sw2 > ACCURATE_RATIO && progressAccurateEnough;
+        if (inDepth && !accurateEnough)
+            subCurve2.subdivideAndRecursiveProgress(p, range_flag, depth + 1, currGlobalProgress,
+                startingProgress + currLocalSubProgressLength, perpendicular_locs);
+        else
+            perpendicular_locs.push_back({currGlobalProgress, subdistance2});
+    }
+}
+
 // two info: in range? distance
 Float CubicBezier2D::accurateDistance(Point2f p, RangeIndicator range_flag) {
     Float globalDistance = roughDistance(p);
@@ -122,6 +196,13 @@ Float CubicBezier2D::accurateDistance(Point2f p, RangeIndicator range_flag) {
     }
     return subdivideAndRecursiveDistance(p, range_flag, 0);
 }
+
+/* Float CubicBezier2D::accurateProgress(Point2f p) {
+    // assume alredy in range
+    Float roughProg = roughProgress(p);
+    // accurate enough?
+    
+} */
 
 static Point3f BlossomBezier(const Point3f p[4], Float u0, Float u1, Float u2) {
     Point3f a[3] = {Lerp(u0, p[0], p[1]), Lerp(u0, p[1], p[2]),
@@ -195,6 +276,15 @@ void Canvas::WriteWrinkles() {
                 if (currHeight < minHeight)
                     minHeight = currHeight;
             }
+            // multi segment wrinkles
+            for (auto& w : ms_wrinkles) {
+                float currHeight = w.height(worldPos);
+                map.Add(i, j, currHeight);
+                if (currHeight > maxHeight)
+                    maxHeight = currHeight;
+                if (currHeight < minHeight)
+                    minHeight = currHeight;
+            }
         }
     }
     LOG(INFO) << "maxHeight:" << maxHeight;
@@ -222,4 +312,24 @@ void Canvas::WriteTIFF() {
     }
 
     WriteTIFFfromFloat("wrinkle.tiff", map.data(), map.size(), map.size(), 1, sizeof(float) * 8);
+}
+
+float MultiSegmentWrinkle::height(Point2f p) {
+    std::vector<CubicBezier2D*> curves;
+    std::vector<float> subheights;
+    
+    std::vector<std::pair<float,float>> perpendicular_locs; // [progress, distance]
+    for(auto& w : ms_wrinkle) {
+        if(w.inRange(p)) {
+            w.subdivideAndRecursiveProgress(p, CubicBezier2D::RangeIndicator::IN_RANGE, 0, 0, 0, perpendicular_locs);
+        }
+    }
+    // calc average
+    float heightSum = 0.f;
+    for(int i = 0; i < perpendicular_locs.size(); i++) {
+        float wrinkleHeight = heightline.height(perpendicular_locs[i].first) * heightPerpendicular(perpendicular_locs[i].second);
+        heightSum += wrinkleHeight;
+    }
+    //heightSum /= perpendicular_locs.size();
+    return heightSum;
 }
